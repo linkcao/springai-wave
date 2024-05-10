@@ -1,0 +1,28 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.jdbc.Driver
+    username: ${mysql.username}
+    password: ${mysql.password}
+    url: ${mysql.url}
+  jpa:
+    generate-ddl: false
+    show-sql: true
+    open-in-view: true
+    properties:
+      hibernate:
+        # 自动创建表
+        ddl-auto: create
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+        use-new-id-generator-mappings: false
+    hibernate:
+      dialect: org.hibernate.dialect.MySQLDialect
+  autoconfigure:
+    exclude: org.springframework.ai.autoconfigure.openai.OpenAiAutoConfiguration
+
+logging:
+  file:
+    path=: /logs

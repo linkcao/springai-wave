@@ -1,0 +1,2 @@
+# springai-wave
+基于SpringAI完成批量化LLM接口请求，并在本地保存过程数据
