@@ -40,40 +40,49 @@ public class ChatService {
 
     }
 
-    // 阻塞式
-    public ChatClient getChatClient() {
-        OpenAiApi openAiApi = randomGetApi();
-        assert openAiApi != null;
-        return new OpenAiChatClient(openAiApi);
-    }
-
+    /**
+     * 多线程请求提示
+     * @param prompts
+     * @param user
+     * @param task
+     * @return
+     */
     @Async
     public CompletableFuture<Void> processPrompts(List<String> prompts, Users user, Task task) {
-        for (String prompt : prompts) {
-            executor.submit(() -> processPrompt(prompt, user));
+        for (int i = 0; i < prompts.size();i++) {
+            int finalI = i;
+            executor.submit(() -> processPrompt(prompts.get(finalI), user, finalI));
         }
         task.setStatus(TaskStatus.COMPLETED);
         taskService.setTask(task);
         return CompletableFuture.completedFuture(null);
     }
 
-    public void processPrompt(String prompt, Users user) {
-        OpenAiApi openAiApi = randomGetApi();
+    /**
+     * 处理单条提示文本
+     * @param prompt 提示文本
+     * @param user 用户
+     * @param index 所在队列下标
+     */
+    public void processPrompt(String prompt, Users user, int index) {
+        // 获取Api Key
+        OpenAiApi openAiApi = getApiByIndex(user, index);
         assert openAiApi != null;
         ChatClient client = new OpenAiChatClient(openAiApi);
+        // 提示文本请求
         String response = client.call(prompt);
         log.info("提示信息" + prompt );
         log.info("输出" + response );
-
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
         // 回答保存数据库
         saveQuestionAndAnswer(user, prompt, response);
     }
 
+    /**
+     * 保存问题和答案
+     * @param user 用户
+     * @param questionContent 问题
+     * @param answerContent 答案
+     */
     public void saveQuestionAndAnswer(Users user, String questionContent, String answerContent) {
         // 保存问题
         Questions question = new Questions();
@@ -90,25 +99,21 @@ public class ChatService {
         answer.setAnswerTime(LocalDateTime.now());
         answerRepository.save(answer);
     }
-    // 流式
-    public StreamingChatClient getStreamChatClient() {
-        OpenAiApi openAiApi = randomGetApi();
-        assert openAiApi != null;
-        return new OpenAiChatClient(openAiApi);
-    }
 
 
-    // 随机获取一个OpenAiApi
-    private OpenAiApi randomGetApi(){
-        List<KeyInfo> keyInfoList = keyRepository.findAll();
-        // 如果数据库中没有KeyInfo对象，则返回null
+    /**
+     * 采用任务下标分配key的方式进行负载均衡
+     * @param index 任务下标
+     * @return OpenAiApi
+     */
+    private OpenAiApi getApiByIndex(Users user, int index){
+        List<KeyInfo> keyInfoList = keyRepository.findByUserUserId(user.getUserId());
         if (keyInfoList.isEmpty()) {
             return null;
         }
-        // 随机选择一个KeyInfo对象
-        Random random = new Random();
-        KeyInfo randomKeyInfo = keyInfoList.get(random.nextInt(keyInfoList.size()));
-        return new OpenAiApi(randomKeyInfo.getApi(),randomKeyInfo.getKeyValue());
+        // 根据任务队列下标分配 Key
+        KeyInfo keyInfo = keyInfoList.get(index % keyInfoList.size());
+        return new OpenAiApi(keyInfo.getApi(),keyInfo.getKeyValue());
     }
 
 

@@ -19,7 +19,10 @@ public class KeyInfo {
     private String keyValue;
     @Column(nullable = false,columnDefinition = "VARCHAR(50) DEFAULT 'https://api.openai.com'")
     private String api;
-    // 描述这个Key干嘛的 可空
+    @ManyToOne
+    @JoinColumn(name = "user_id", nullable = false)
+    private Users user;
+
     private String description;
 
 }

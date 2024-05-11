@@ -33,24 +33,18 @@ public class ChatController {
     private final TaskService taskService;
 
 
-
-    @GetMapping("/demo")
-    public String chatDemo(String prompt, String username){
-        ChatClient chatClient = chatService.getChatClient();
-        String response = chatClient.call(prompt);
-        log.info("提示信息" + prompt );
-        log.info("输出" + response );
-        // 回答保存数据库
-        Users user = userService.findByUsername(username);
-        chatService.saveQuestionAndAnswer(user, prompt, response);
-        return response;
-    }
-
+    /**
+     * 依靠线程池批量请求GPT
+     * @param promptFile 传入的批量提示文件，每一行为一个提示语句
+     * @param username 调用的用户
+     * @return 处理状态
+     */
     @PostMapping("/batch")
     public String batchPrompt(MultipartFile promptFile, String username){
         if (promptFile.isEmpty()) {
             return "上传的文件为空";
         }
+        // 批量请求任务
         Task task = new Task();
         try {
             BufferedReader reader = new BufferedReader(new InputStreamReader(promptFile.getInputStream()));
@@ -59,19 +53,23 @@ public class ChatController {
             while ((line = reader.readLine()) != null) {
                 prompts.add(line);
             }
+            // 用户信息请求
             Users user = userService.findByUsername(username);
-            // 异步处理提示
+            // 任务状态设置
             task.setFileName(promptFile.getName());
             task.setStartTime(LocalDateTime.now());
             task.setUserId(user.getUserId());
             task.setStatus(TaskStatus.PROCESSING);
-            CompletableFuture<Void> future = chatService.processPrompts(prompts, user, task);
+            // 线程池处理
+            chatService.processPrompts(prompts, user, task);
             return "文件上传成功，已开始批量处理提示";
         } catch ( IOException e) {
+            // 处理失败
             e.printStackTrace();
             task.setStatus(TaskStatus.FAILED);
             return "上传文件时出错：" + e.getMessage();
         } finally {
+            // 任务状态保存
             taskService.setTask(task);
         }
     }
